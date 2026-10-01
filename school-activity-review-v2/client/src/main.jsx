@@ -4,7 +4,7 @@ import './style.css';
 
 const API=(import.meta.env.VITE_API_URL||'http://localhost:10000/api').replace(/\/$/,'');
 const cats=['전체','교육과정','체험활동','행사','연수','기타'];
-const api=async(path,opt={})=>{const r=await fetch(API+path,{headers:{'Content-Type':'application/json',...(opt.headers||{})},...opt});const d=await r.json().catch(()=>({}));if(!r.ok)throw new Error(d.message||'오류가 발생했습니다.');return d;};
+const api=async(path,opt={})=>{const r=await fetch(API+path,{...opt,headers:{'Content-Type':'application/json',...(opt.headers||{})}});const d=await r.json().catch(()=>({}));if(!r.ok)throw new Error(d.message||'오류가 발생했습니다.');return d;};
 const authHeader=(token)=>({Authorization:`Bearer ${token}`});
 function Stars({value=0,onChange,large=false}){return <div className={'stars '+(large?'large':'')} aria-label={`${value}점`}>{[1,2,3,4,5].map(n=><button type="button" key={n} onClick={()=>onChange?.(n)} className={n<=value?'on':''}>★</button>)}</div>}
 function App(){
