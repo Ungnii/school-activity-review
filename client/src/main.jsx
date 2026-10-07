@@ -6,7 +6,7 @@ const API=(import.meta.env.VITE_API_URL||'http://localhost:10000/api').replace(/
 const GRADES=[1,2,3,4,5,6];
 const TYPES=['찾아오는 체험학습','공연·문화예술','생태·환경','진로·직업','안전·생활','교육과정 연계','기타'];
 const recs=['적극 추천','추천','조건부 추천','비추천'];
-async function api(path,opt={}){const r=await fetch(API+path,{headers:{'Content-Type':'application/json',...(opt.headers||{})},...opt});let d={};try{d=await r.json()}catch{}if(!r.ok)throw new Error(d.message||'요청에 실패했습니다.');return d}
+async function api(path,opt={}){const r=await fetch(API+path,{...opt,headers:{'Content-Type':'application/json',...(opt.headers||{})}});let d={};try{d=await r.json()}catch{}if(!r.ok)throw new Error(d.message||'요청에 실패했습니다.');return d}
 const auth=t=>({Authorization:`Bearer ${t}`});
 function GradeTags({values=[]}){return <div className="grades">{values.map(g=><span key={g}>{g}학년</span>)}</div>}
 function App(){const [grade,setGrade]=useState('');const [q,setQ]=useState('');const [list,setList]=useState([]);const [selected,setSelected]=useState(null);const [admin,setAdmin]=useState(false);const [login,setLogin]=useState(false);const [loading,setLoading]=useState(true);const load=async()=>{setLoading(true);try{setList(await api(`/activities?grade=${grade}&q=${encodeURIComponent(q)}`))}catch(e){alert(e.message)}finally{setLoading(false)}};useEffect(()=>{load()},[grade]);useEffect(()=>{const t=setTimeout(load,250);return()=>clearTimeout(t)},[q]);
