@@ -55,7 +55,7 @@ app.get('/api/activities/:id', async(req,res)=>{
 });
 
 app.get('/api/admin/activities',auth('admin'),async(_req,res)=>{
- try{const rows=(await pool.query(`SELECT a.*,COALESCE((SELECT ARRAY_AGG(ag.grade ORDER BY ag.grade) FROM activity_available_grades_v4 ag WHERE ag.activity_id=a.id),'{}') available_grades FROM activities_v4 a ORDER BY a.name`)).rows;res.json(rows);}catch(e){res.status(500).json({message:'교육활동을 불러오지 못했습니다.'});}
+ try{const rows=(await pool.query(`SELECT a.*,COALESCE((SELECT ARRAY_AGG(ag.grade ORDER BY ag.grade) FROM activity_available_grades_v4 ag WHERE ag.activity_id=a.id),'{}') available_grades FROM activities_v4 a WHERE a.is_active=true ORDER BY a.name`)).rows;res.json(rows);}catch(e){res.status(500).json({message:'교육활동을 불러오지 못했습니다.'});}
 });
 app.post('/api/admin/activities',auth('admin'),async(req,res)=>{
  const {name,activity_type,provider='',description='',duration_periods=null,available_grades=[]}=req.body||{}; const gs=grades(available_grades);
@@ -89,6 +89,21 @@ app.post('/api/activities/:id/records',limiter,async(req,res)=>{
  if(overall_satisfaction!==''&&overall_satisfaction!=null&&(!Number.isFinite(Number(overall_satisfaction))||Number(overall_satisfaction)<1||Number(overall_satisfaction)>5))return res.status(400).json({message:'만족도는 1~5 사이로 입력해주세요.'});
  const allowed=(await pool.query('SELECT 1 FROM activity_years_v4 ay JOIN activity_year_grades_v4 yg ON yg.activity_year_id=ay.id WHERE ay.activity_id=$1 AND ay.school_year=$2 AND yg.grade=$3',[id,year,grade])).rows[0];if(!allowed)return res.status(400).json({message:'해당 연도에 운영한 학년으로 등록되어 있지 않습니다. 관리자에게 확인해주세요.'});
  try{const r=(await pool.query(`INSERT INTO activity_records_v4(activity_id,school_year,reviewer_grade,budget,overall_satisfaction,recommendation,pros,cons,additional_comment,reviewer_name) VALUES($1,$2,$3,NULL,$4,$5,$6,$7,$8,$9) ON CONFLICT(activity_id,school_year,reviewer_grade) DO UPDATE SET overall_satisfaction=EXCLUDED.overall_satisfaction,recommendation=EXCLUDED.recommendation,pros=EXCLUDED.pros,cons=EXCLUDED.cons,additional_comment=EXCLUDED.additional_comment,reviewer_name=EXCLUDED.reviewer_name,updated_at=NOW() RETURNING *`,[id,year,grade,overall_satisfaction===''||overall_satisfaction==null?null:Number(overall_satisfaction),recommendation,pros.trim(),cons.trim(),additional_comment.trim(),reviewer_name.trim()])).rows[0];await pool.query('DELETE FROM activity_record_grades_v4 WHERE record_id=$1',[r.id]);await pool.query('INSERT INTO activity_record_grades_v4(record_id,grade) VALUES($1,$2) ON CONFLICT DO NOTHING',[r.id,grade]);res.status(201).json(r);}catch(e){res.status(500).json({message:'운영 기록을 저장하지 못했습니다.'});}
+});
+
+
+// 학년부장 운영기록 수정/삭제. 별도 로그인 없이 사용하는 학교 내부용 공개 API입니다.
+app.put('/api/activities/:id/records/:recordId',limiter,async(req,res)=>{
+ const activityId=Number(req.params.id),recordId=Number(req.params.recordId);
+ const {overall_satisfaction=null,recommendation='추천',pros='',cons='',additional_comment='',reviewer_name=''}=req.body||{};
+ if(!Number.isInteger(activityId)||!Number.isInteger(recordId))return res.status(400).json({message:'잘못된 운영 기록입니다.'});
+ if(!recs.includes(recommendation))return res.status(400).json({message:'재실시 추천을 선택해주세요.'});
+ if(overall_satisfaction!==''&&overall_satisfaction!=null&&(!Number.isFinite(Number(overall_satisfaction))||Number(overall_satisfaction)<1||Number(overall_satisfaction)>5))return res.status(400).json({message:'만족도는 1~5 사이로 입력해주세요.'});
+ try{const r=(await pool.query(`UPDATE activity_records_v4 SET overall_satisfaction=$1,recommendation=$2,pros=$3,cons=$4,additional_comment=$5,reviewer_name=$6,updated_at=NOW() WHERE id=$7 AND activity_id=$8 RETURNING *`,[overall_satisfaction===''||overall_satisfaction==null?null:Number(overall_satisfaction),recommendation,String(pros).trim(),String(cons).trim(),String(additional_comment).trim(),String(reviewer_name).trim(),recordId,activityId])).rows[0];if(!r)return res.status(404).json({message:'운영 기록을 찾을 수 없습니다.'});res.json(r);}catch(e){res.status(500).json({message:'운영 기록을 수정하지 못했습니다.'});}
+});
+app.delete('/api/activities/:id/records/:recordId',limiter,async(req,res)=>{
+ const activityId=Number(req.params.id),recordId=Number(req.params.recordId);
+ try{const r=await pool.query('DELETE FROM activity_records_v4 WHERE id=$1 AND activity_id=$2 RETURNING id',[recordId,activityId]);if(!r.rows[0])return res.status(404).json({message:'운영 기록을 찾을 수 없습니다.'});res.json({ok:true});}catch(e){res.status(500).json({message:'운영 기록을 삭제하지 못했습니다.'});}
 });
 
 const port=process.env.PORT||10000;app.listen(port,'0.0.0.0',()=>console.log(`API listening on ${port}`));
