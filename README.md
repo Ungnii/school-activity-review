@@ -1,35 +1,64 @@
-# 우리학교 교육활동 아카이브 v4
+# 우리학교 교육활동 아카이브 v4.2
 
-학교에서 운영한 교육활동의 정보를 기록하고, 다음 학년도의 교육활동 선택에 필요한 정보를 제공하는 아카이브 시스템입니다.
+## 핵심 변경
 
-## 핵심 기능
-- 교육활동 기본정보 등록: 활동명 / 유형 / 운영기관 / 프로그램 소개 / 소요시간
-- 신청 가능한 학년 1~6학년 선택
-- 연도별 운영 기록: 운영 연도 / 실제 운영 학년 / 예산 / 만족도 / 장점 / 단점 / 재실시 추천 / 추가 의견 / 작성자
-- 일반 화면: 학년 필터, 검색, 활동 상세, 연도별 기록 확인
-- 관리자: 교육활동 등록·수정·비활성화, 운영 기록 등록·수정
+- 첫 화면에서 **운영 연도**를 먼저 선택합니다.
+- 선택한 연도에 실제 운영한 교육활동만 목록에 표시합니다.
+- 카드에 해당 연도의 예산과 실제 운영 학년, 해당 연도 평가 요약을 표시합니다.
+- 관리자: 교육활동 기본정보를 등록·수정하고, 별도로 연도별 운영 여부·예산·실제 운영 학년을 등록합니다.
+- 학년부장: 관리자 로그인 없이 해당 연도/학년의 만족도, 장점, 단점, 재실시 추천, 추가 의견만 기록합니다.
+- 예산은 학년별 평가에 중복 저장하지 않고 `교육활동 + 운영 연도` 단위로 관리합니다.
+- 소요 시간은 차시로 입력하며 초등학교 기준 1차시=40분입니다.
+- 기존 v3 테이블 및 기존 운영기록은 삭제하지 않습니다.
 
-## 중요: Neon DB
-기존 v3 테이블은 건드리지 않습니다. `server/sql/schema.sql`은 `_v4` 테이블만 생성합니다.
-이미 Neon에서 이 SQL을 실행했다면 다시 실행할 필요가 없습니다.
+## 배포 순서
 
-## Render
-Root Directory: `server`
-Build Command: `npm install`
-Start Command: `npm start`
-환경변수:
-- DATABASE_URL = 기존 Neon DATABASE_URL 그대로
-- JWT_SECRET = 긴 임의 문자열
-- ADMIN_PASSWORD = 관리자 비밀번호
-- CLIENT_ORIGIN = Netlify 주소
-- PORT = 10000 (Render에서 자동 PORT를 제공하므로 없어도 됨)
+### 1. Neon DB 마이그레이션
 
-## Netlify
-Base directory: `client`
-Build command: `npm run build`
-Publish directory: `dist`
-환경변수:
-- VITE_API_URL = `https://school-activity-review-api.onrender.com/api`
+Neon SQL Editor에서 아래 순서로 실행합니다.
 
-## 기존 Render/Netlify 주소를 그대로 쓸 경우
-현재 사용 중인 Render API와 Netlify 사이트를 새 v4 코드로 교체해서 사용할 수 있습니다. 기존 v3 DB 테이블은 삭제하지 않습니다.
+1. `server/sql/migration-v4-1.sql` — 아직 실행하지 않았다면 실행합니다. 이미 실행했다면 건너뜁니다.
+2. `server/sql/migration-v4-2.sql` — 이번 버전에서 새로 한 번 실행합니다.
+
+`migration-v4-2.sql`은 `activity_years_v4` 및 `activity_year_grades_v4`를 만들고, 기존 운영기록의 연도·예산·운영 학년을 새 구조로 옮깁니다. 기존 기록은 삭제하지 않습니다. 이전 학년별 예산이 서로 달랐다면 연도별 예산 초기값으로 가장 큰 금액을 가져오므로, 실제 예산과 다르면 관리자가 해당 연도 정보를 수정해 주세요.
+
+### 2. GitHub
+
+기존 `school-activity-review` 저장소에서 다음을 반영합니다.
+
+- 교체: `client/src/main.jsx`
+- 교체: `client/src/style.css`
+- 교체: `server/src/index.js`
+- 추가: `server/sql/migration-v4-2.sql`
+- `server/sql/migration-v4-1.sql`은 이미 저장소에 있으면 그대로 둡니다.
+
+기존 프로젝트 폴더를 통째로 덮어쓰거나 ZIP 파일 자체를 업로드하지 말고, 지정된 파일만 교체/추가합니다.
+
+### 3. Render
+
+GitHub 커밋 후 자동 배포를 확인합니다. 기존 설정과 환경변수는 유지합니다.
+
+- Root Directory: `server`
+- Build Command: `npm install`
+- Start Command: `npm start`
+
+### 4. Netlify
+
+GitHub 커밋 후 자동 배포를 확인합니다. 기존 설정과 환경변수는 유지합니다.
+
+- Base directory: `client`
+- Build command: `npm run build`
+- Publish directory: `dist`
+- `VITE_API_URL`은 기존 Render API 주소를 유지합니다.
+
+## 실제 사용 흐름
+
+1. 관리자가 교육활동 기본정보를 등록합니다.
+2. 관리자 메뉴에서 해당 활동의 **연도·예산 관리**를 누릅니다.
+3. 운영 연도, 예산, 실제 운영 학년을 등록합니다.
+4. 메인 화면에서 연도를 선택하면 그해 운영한 활동만 나타납니다.
+5. 학년부장은 `학년부장 운영기록`에서 연도와 학년, 활동을 선택하고 평가를 남깁니다.
+
+## 참고
+
+학년부장 입력은 로그인 없이 열려 있으므로 사이트를 아는 사람이면 입력 시도를 할 수 있습니다. 공개 접근을 제한해야 한다면 이후 학교용 접근코드를 추가하는 것이 좋습니다.
